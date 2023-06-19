@@ -4,10 +4,11 @@ from pathlib import Path
 import base64
 import json
 import logging
+import sendKey
 app = Flask(__name__)
 
 
-managedPubkeyFile = '/data/managed_pubkey.json'
+managedPubkeyFile = 'data/managed_pubkey.json'
 
 @app.route('/', methods=['GET'])
 def index():
@@ -20,8 +21,9 @@ def index():
                 try:
                     ipkeyData = json.loads(fr)
                     lines = []
+
                     for key in ipkeyData.keys():
-                        lines.append(key + ':' + ipkeyData[key])
+                        lines.append(key + ':' + ','.join(ipkeyData[key]))
 
                     return render_template('index.html', lines = lines)
                 except json.decoder.JSONDecodeError:
@@ -36,6 +38,7 @@ def send():
         hostname = request.form['hostname']
         pubkey = request.form['pubkey']
         ipkeyData = {}
+        keyList = []
 
         with open(managedPubkeyFile, 'r') as f:
             fr = f.read()
@@ -44,9 +47,17 @@ def send():
 
 
         with open(managedPubkeyFile, 'w') as f:
-            ipkeyData[hostname] = pubkey
+            if hostname in ipkeyData.keys():
+                keyList = ipkeyData[hostname]
+
+
+            keyList.append(pubkey)
+            ipkeyData[hostname] = keyList
             ipkeyDataJson = json.dumps(ipkeyData, indent=4)
             f.write(ipkeyDataJson)
+
+            sendAgent = sendKey.SendKeyAgent(hostname, pubkey)
+            sendAgent.sendToHost()
 
         return redirect(url_for('index'))
 
